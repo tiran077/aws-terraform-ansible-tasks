@@ -1,0 +1,19 @@
+---
+    - name: Update apt repo and cache on all Debian/Ubuntu instances
+      apt: 
+        update_cache: yes 
+        force_apt_get: yes 
+        cache_valid_time: 3600
+    
+    - name: Update all packages to their latest version
+      apt:
+        name: "*"
+        state: latest
+
+    - name: Upgrade the OS
+      apt: 
+        upgrade: dist 
+
+    - name: Reboot instances
+      reboot:
+        reboot_timeout: 7200

@@ -1,0 +1,32 @@
+---
+    - name: Create User
+      ansible.builtin.user:
+        name: "{{ username }}"
+        state: present
+        shell: /bin/bash
+        password: "{{ userpass | password_hash('sha512') }}"
+        update_password: on_create
+        groups: ""
+        append: yes
+
+    - name: generate SSH key id_rsa_1
+      user:
+        name: "{{username}}"
+        generate_ssh_key: yes
+        ssh_key_type: rsa
+        ssh_key_bits: 4096
+        ssh_key_file: .ssh/id_rsa_1
+        ssh_key_passphrase: ""
+        force: no
+
+    - name: Insert/Update "Match User" configuration block in /etc/ssh/sshd_config
+      blockinfile:
+        path: /etc/ssh/sshd_config
+        block: |
+          Match User {{username}}
+          PasswordAuthentication no
+          AllowAgentForwarding no
+          PermitOpen localhost:62222
+      notify:
+       - restart ssh
+ 

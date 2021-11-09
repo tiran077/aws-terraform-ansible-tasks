@@ -1,0 +1,13 @@
+---
+- hosts: demo
+  strategy: free
+  become: true
+  gather_facts: false
+  become_user: root
+  vars:
+    username: user1
+    userpass: 123qweASD
+  roles:
+    - userconfig
+    - hostnameconfig
+    - update

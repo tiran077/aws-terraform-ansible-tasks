@@ -1,0 +1,90 @@
+name: master
+
+on:
+  push:
+    branches:
+      - 'master'
+  workflow_dispatch:
+
+env:
+  TERRAFORM_VERSION: "1.0.10"
+
+jobs:
+  apply:
+    name: 'Running tasks'
+    runs-on: self-hosted
+#    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - name: Install dependencies
+        working-directory: /tmp
+        run: |
+          tf_version=$TERRAFORM_VERSION
+          wget https://releases.hashicorp.com/terraform/"$tf_version"/terraform_"$tf_version"_linux_amd64.zip
+          sudo apt install -y unzip
+          unzip -o terraform_"$tf_version"_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/terraform-$TERRAFORM_VERSION
+          python -m pip install --upgrade pip
+          pip install awscli
+          pip install ansible
+          mkdir -p ~/.aws
+          echo "${{ secrets.AWS_PROFILE_FILE }}" > ~/.aws/credentials
+
+      - name: Verify Terraform version
+        id: version
+        run: terraform-$TERRAFORM_VERSION --version
+
+      - name: Terraform init
+        working-directory: ./terraform
+        id: init
+        run: terraform-$TERRAFORM_VERSION init -input=false
+
+      - name: Terraform Format
+        working-directory: ./terraform
+        id: fmt
+        run: terraform-$TERRAFORM_VERSION fmt -diff -check
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        id: validate
+        run: terraform-$TERRAFORM_VERSION validate -no-color
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        id: plan
+        run: terraform-$TERRAFORM_VERSION plan -no-color
+
+        continue-on-error: false
+      
+      - name: Terraform Apply
+        working-directory: ./terraform
+        id: apply
+        run: terraform-$TERRAFORM_VERSION apply -auto-approve -no-color
+        continue-on-error: false
+
+      - name: Read Ansible inventory
+        id: inventory
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: terraform/inventory
+
+      - name: Echo Ansible inventory
+        run: echo "${{ steps.inventory.outputs.content }}"
+
+      - name: cp ansible inventory
+        run: |
+          cp terraform/inventory ansible/inventory
+
+      - name: Run Ansible playbook
+        run: |
+          cd ansible
+          echo "${{ secrets.DEMO_KEY }}" > ssh-key
+          chmod 600 ssh-key
+          ansible-playbook deploy.yml --inventory inventory --syntax-check
+          ansible-playbook deploy.yml --inventory inventory --private-key ssh-key
